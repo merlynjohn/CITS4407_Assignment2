@@ -1,0 +1,107 @@
+#!/bin/bash
+
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <cleaned-data-file.tsv>"
+    exit 1
+fi
+
+FILE="$1"
+
+# Skip header, save data to temp file
+tail -n +2 "$FILE" > temp_data.tsv
+
+# --- 1. Find most popular mechanic ---
+most_popular_mechanic=$(awk -F'\t' '
+{
+    n = split($13, mech_arr, /[.,]\s*/)
+    for(i=1; i<=n; i++) {
+        mech = mech_arr[i]
+        if (mech != "") {
+            mech_count[mech]++
+        }
+    }
+}
+END {
+    max=0
+    popular=""
+    for (m in mech_count) {
+        if (mech_count[m] > max) {
+            max = mech_count[m]
+            popular = m
+        }
+    }
+    print popular, max
+}' temp_data.tsv)
+
+# --- 2. Find most popular domain---
+most_popular_domain=$(awk -F'\t' '
+{
+    n = split($14, dom_arr, /[.,]\s*/)
+    for(i=1; i<=n; i++) {
+        dom = dom_arr[i]
+        if (dom != "") {
+            dom_count[dom]++
+        }
+    }
+}
+END {
+    max=0
+    popular=""
+    for (d in dom_count) {
+        if (dom_count[d] > max) {
+            max = dom_count[d]
+            popular = d
+        }
+    }
+    print popular, max
+}' temp_data.tsv)
+
+# --- 3. Calculate Pearson correlation coefficients for ---
+
+read year_rating_corr complexity_rating_corr < <(awk -F'\t' '
+function pearson(x, y, n,   i, sum_x, sum_y, sum_x2, sum_y2, sum_xy, mean_x, mean_y, numerator, denominator) {
+    n = length(x)
+    if (n == 0) return 0
+    sum_x = 0; sum_y = 0; sum_x2 = 0; sum_y2 = 0; sum_xy = 0
+    for (i=1; i<=n; i++) {
+        sum_x += x[i]
+        sum_y += y[i]
+        sum_x2 += x[i]*x[i]
+        sum_y2 += y[i]*y[i]
+        sum_xy += x[i]*y[i]
+    }
+    mean_x = sum_x / n
+    mean_y = sum_y / n
+    numerator = sum_xy - n*mean_x*mean_y
+    denominator = sqrt((sum_x2 - n*mean_x*mean_x)*(sum_y2 - n*mean_y*mean_y))
+    if (denominator == 0) return 0
+    return numerator / denominator
+}
+BEGIN {
+    # arrays to hold values
+    count = 0
+}
+{
+    if ($3 ~ /^[0-9]+$/ && $9 ~ /^[0-9]*\.?[0-9]+$/ && $11 ~ /^[0-9]*\.?[0-9]+$/) {
+        count++
+        year[count] = $3 + 0
+        rating[count] = $9 + 0
+        complexity[count] = $11 + 0
+    }
+}
+END {
+    yr_corr = pearson(year, rating)
+    cr_corr = pearson(complexity, rating)
+    printf("%.3f %.3f\n", yr_corr, cr_corr)
+}' temp_data.tsv)
+
+# --- 4. Print final results ---
+
+echo "The most popular game mechanic is $(echo "$most_popular_mechanic" | cut -d' ' -f1) found in $(echo "$most_popular_mechanic" | cut -d' ' -f2) games"
+echo "The most game domain is $(echo "$most_popular_domain" | cut -d' ' -f1) found in $(echo "$most_popular_domain" | cut -d' ' -f2) games"
+echo ""
+echo "The correlation between the year of publication and the average rating is $year_rating_corr"
+echo "The correlation between the complexity of a game and its average rating is $complexity_rating_corr"
+
+# Clean up
+rm temp_data.tsv
