@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# Usage: ./preprocess filename separator
+# Example: ./preprocess bgg_dataset.txt ';'
+
+if [ $# -ne 2 ]; then
+  echo "Usage: $0 filename separator"
+  exit 1
+fi
+
+file="$1"
+sep="$2"
+
+# Step 1: Convert semicolons (or your separator) to tabs,
+# Step 2: Convert Windows line endings \r\n to Unix \n,
+# Step 3: Convert decimal commas to decimal points,
+# Step 4: Remove non-ASCII characters,
+# Step 5: Create unique IDs for empty ID fields.
+
+# Read the header line and output it with tab separator and clean chars
+IFS= read -r header_line < "$file"
+
+# Replace separator with tab, fix line endings, convert commas in floats to dots, remove non-ASCII
+# We'll process the entire file except the header to assign new IDs where empty
+
+# Find max ID in file (numeric part only, assuming /ID field is the first column)
+max_id=$(tail -n +2 "$file" | cut -d"$sep" -f1 | grep -E '^[0-9]+$' | sort -n | tail -1)
+if [ -z "$max_id" ]; then
+  max_id=0
+fi
+new_id=$((max_id + 1))
+
+# Output the cleaned header
+echo -e "$header_line" | tr "$sep" '\t' | tr -d '\r' | tr -cd '\11\12\15\40-\176'
+
+# Process lines after header
+tail -n +2 "$file" | while IFS="$sep" read -r -a fields; do
+  # Fix ID if empty
+  if [ -z "${fields[0]}" ]; then
+    fields[0]=$new_id
+    new_id=$((new_id + 1))
+  fi
+
+  # Convert commas in floats to dots in all fields (safe if no commas used except decimals)
+  for i in "${!fields[@]}"; do
+    # Use parameter expansion to replace , with .
+    fields[$i]="${fields[$i]//,/.}"
+  done
+
+  # Join fields with tab
+  line=$(IFS=$'\t'; echo "${fields[*]}")
+
+  # Remove Windows line endings and non-ASCII chars
+  echo "$line" | tr -d '\r' | tr -cd '\11\12\15\40-\176'
+done
