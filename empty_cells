@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# Usage: ./empty_cells filename separator
+
+if [ $# -ne 2 ]; then
+  echo "Usage: $0 filename separator"
+  exit 1
+fi
+
+file="$1"
+sep="$2"
+
+# Read the header line to get column names
+IFS="$sep" read -r -a raw_headers < "$file"
+# Remove empty headers (like trailing empty fields)
+headers=()
+for h in "${raw_headers[@]}"; do
+  if [[ -n "$h" ]]; then
+    headers+=("$h")
+  fi
+done
+
+# Initialize an array to count empty cells per column
+declare -a empty_counts
+for ((i=0; i<${#headers[@]}; i++)); do
+  empty_counts[i]=0
+done
+
+# Process each line after the header
+tail -n +2 "$file" | while IFS="$sep" read -r -a fields; do
+  for ((i=0; i<${#headers[@]}; i++)); do
+    # If field is empty (zero length), increment count
+    if [ -z "${fields[i]}" ]; then
+      empty_counts[i]=$((empty_counts[i]+1))
+    fi
+  done
+done
+
+# Because while-loop runs in a subshell, use a workaround:
+# Instead, let's do the reading in a for loop without subshell
+
+# Re-implement the counting part to avoid subshell problem
+
+# Reset counts
+for ((i=0; i<${#headers[@]}; i++)); do
+  empty_counts[i]=0
+done
+
+# Read file line by line except header
+{
+  read -r header_line
+  while IFS="$sep" read -r -a fields; do
+    for ((i=0; i<${#headers[@]}; i++)); do
+      if [ -z "${fields[i]}" ]; then
+        empty_counts[i]=$((empty_counts[i]+1))
+      fi
+    done
+  done
+} < "$file"
+
+# Output the counts
+for ((i=0; i<${#headers[@]}; i++)); do
+  echo "${headers[i]}: ${empty_counts[i]}"
+done
