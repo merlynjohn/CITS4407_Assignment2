@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Usage: ./preprocess filename separator
-# Example: ./preprocess bgg_dataset.txt ';'
-
 if [ $# -ne 2 ]; then
   echo "Usage: $0 filename separator"
   exit 1
@@ -11,7 +8,7 @@ fi
 file="$1"
 sep="$2"
 
-# Step 1: Convert semicolons (or your separator) to tabs,
+# Step 1: Convert semicolons to tabs,
 # Step 2: Convert Windows line endings \r\n to Unix \n,
 # Step 3: Convert decimal commas to decimal points,
 # Step 4: Remove non-ASCII characters,
@@ -21,9 +18,8 @@ sep="$2"
 IFS= read -r header_line < "$file"
 
 # Replace separator with tab, fix line endings, convert commas in floats to dots, remove non-ASCII
-# We'll process the entire file except the header to assign new IDs where empty
 
-# Find max ID in file (numeric part only, assuming /ID field is the first column)
+# Find max ID in file
 max_id=$(tail -n +2 "$file" | cut -d"$sep" -f1 | grep -E '^[0-9]+$' | sort -n | tail -1)
 if [ -z "$max_id" ]; then
   max_id=0
@@ -41,7 +37,7 @@ tail -n +2 "$file" | while IFS="$sep" read -r -a fields; do
     new_id=$((new_id + 1))
   fi
 
-  # Convert commas in floats to dots in all fields (safe if no commas used except decimals)
+  # Convert commas in floats to dots in all fields
   for i in "${!fields[@]}"; do
     # Use parameter expansion to replace , with .
     fields[$i]="${fields[$i]//,/.}"
