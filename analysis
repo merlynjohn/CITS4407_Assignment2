@@ -13,7 +13,7 @@ tail -n +2 "$FILE" > temp_data.tsv
 # --- 1. Find most popular mechanic ---
 most_popular_mechanic=$(awk -F'\t' '
 {
-    n = split($13, mech_arr, /[.,]\s*/)
+    n = split($13, mech_arr, /[.]/)
     for(i=1; i<=n; i++) {
         mech = mech_arr[i]
         if (mech != "") {
@@ -36,7 +36,7 @@ END {
 # --- 2. Find most popular domain---
 most_popular_domain=$(awk -F'\t' '
 {
-    n = split($14, dom_arr, /[.,]\s*/)
+    n = split($13, mech_arr, /[.]/)
     for(i=1; i<=n; i++) {
         dom = dom_arr[i]
         if (dom != "") {
@@ -72,8 +72,16 @@ function pearson(x, y, n,   i, sum_x, sum_y, sum_x2, sum_y2, sum_xy, mean_x, mea
     }
     mean_x = sum_x / n
     mean_y = sum_y / n
-    numerator = sum_xy - n*mean_x*mean_y
-    denominator = sqrt((sum_x2 - n*mean_x*mean_x)*(sum_y2 - n*mean_y*mean_y))
+
+    for (i=1; i<=n; i++) {
+        diff_x = x[i] - mean_x
+        diff_y = y[i] - mean_y
+        sum_xy += diff_x * diff_y
+        sum_x2 += diff_x * diff_x
+        sum_y2 += diff_y * diff_y
+    }
+    denominator = sqrt(sum_x2 * sum_y2)
+    
     if (denominator == 0) return 0
     return numerator / denominator
 }
@@ -82,7 +90,8 @@ BEGIN {
     count = 0
 }
 {
-    if ($3 ~ /^[0-9]+$/ && $9 ~ /^[0-9]*\.?[0-9]+$/ && $11 ~ /^[0-9]*\.?[0-9]+$/) {
+    if (NF >= 14 && $3 ~ /^[0-9]+$/ && $9 ~ /^[0-9]*\.?[0-9]+$/ && $11 ~ /^[0-9]*\.?[0-9]+$/)
+    {
         count++
         year[count] = $3 + 0
         rating[count] = $9 + 0
@@ -104,4 +113,4 @@ echo "The correlation between the year of publication and the average rating is 
 echo "The correlation between the complexity of a game and its average rating is $complexity_rating_corr"
 
 # Clean up
-rm temp_data.tsv
+trap "rm -f temp_data.tsv" EXIT
